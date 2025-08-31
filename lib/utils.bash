@@ -51,20 +51,35 @@ download_release() {
 install_version() {
 	local install_type="$1"
 	local version="$2"
-	local install_path="${3%/bin}/bin"
+	local install_path="$3"
 
 	if [ "$install_type" != "version" ]; then
 		fail "asdf-$TOOL_NAME supports release installs only"
 	fi
 
-	(
-		mkdir -p "$install_path"
-		cp -r "$ASDF_DOWNLOAD_PATH"/* "$install_path"
+	# Check for required build dependencies
+	if ! command -v cargo >/dev/null 2>&1; then
+		fail "cargo is required to build $TOOL_NAME. Please install Rust: https://rustup.rs/"
+	fi
 
-		# TODO: Assert eza executable exists.
+	if ! command -v rustc >/dev/null 2>&1; then
+		fail "rustc is required to build $TOOL_NAME. Please install Rust: https://rustup.rs/"
+	fi
+
+	(
+		echo "* Building $TOOL_NAME $version from source..."
+		
+		# Navigate to the downloaded source code and build with cargo
+		cd "$ASDF_DOWNLOAD_PATH" || fail "Could not access downloaded source code at $ASDF_DOWNLOAD_PATH"
+		
+		# Install the binary directly to the asdf install path
+		# cargo install will create the bin/ directory automatically
+		cargo install --path . --root "$install_path" --locked || fail "Failed to build $TOOL_NAME with cargo"
+
+		# Verify the installation was successful
 		local tool_cmd
 		tool_cmd="$(echo "$TOOL_TEST" | cut -d' ' -f1)"
-		test -x "$install_path/$tool_cmd" || fail "Expected $install_path/$tool_cmd to be executable."
+		test -x "$install_path/bin/$tool_cmd" || fail "Expected $install_path/bin/$tool_cmd to be executable after installation."
 
 		echo "$TOOL_NAME $version installation was successful!"
 	) || (
