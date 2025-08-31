@@ -48,6 +48,39 @@ download_release() {
 	curl "${curl_opts[@]}" -o "$filename" -C - "$url" || fail "Could not download $url"
 }
 
+check_build_dependencies() {
+	if ! command -v cargo >/dev/null 2>&1; then
+		fail "cargo is required to build $TOOL_NAME. Please install Rust: https://rustup.rs/"
+	fi
+
+	if ! command -v rustc >/dev/null 2>&1; then
+		fail "rustc is required to build $TOOL_NAME. Please install Rust: https://rustup.rs/"
+	fi
+}
+
+build_from_source() {
+	local version="$1"
+	local install_path="$2"
+
+	echo "* Building $TOOL_NAME $version from source..."
+	
+	# Navigate to the downloaded source code and build with cargo
+	cd "$ASDF_DOWNLOAD_PATH" || fail "Could not access downloaded source code at $ASDF_DOWNLOAD_PATH"
+	
+	# Install the binary directly to the asdf install path
+	# cargo install will create the bin/ directory automatically
+	cargo install --path . --root "$install_path" --locked || fail "Failed to build $TOOL_NAME with cargo"
+}
+
+verify_installation() {
+	local install_path="$1"
+	
+	# Verify the installation was successful
+	local tool_cmd
+	tool_cmd="$(echo "$TOOL_TEST" | cut -d' ' -f1)"
+	test -x "$install_path/bin/$tool_cmd" || fail "Expected $install_path/bin/$tool_cmd to be executable after installation."
+}
+
 install_version() {
 	local install_type="$1"
 	local version="$2"
@@ -58,28 +91,14 @@ install_version() {
 	fi
 
 	# Check for required build dependencies
-	if ! command -v cargo >/dev/null 2>&1; then
-		fail "cargo is required to build $TOOL_NAME. Please install Rust: https://rustup.rs/"
-	fi
-
-	if ! command -v rustc >/dev/null 2>&1; then
-		fail "rustc is required to build $TOOL_NAME. Please install Rust: https://rustup.rs/"
-	fi
+	check_build_dependencies
 
 	(
-		echo "* Building $TOOL_NAME $version from source..."
-		
-		# Navigate to the downloaded source code and build with cargo
-		cd "$ASDF_DOWNLOAD_PATH" || fail "Could not access downloaded source code at $ASDF_DOWNLOAD_PATH"
-		
-		# Install the binary directly to the asdf install path
-		# cargo install will create the bin/ directory automatically
-		cargo install --path . --root "$install_path" --locked || fail "Failed to build $TOOL_NAME with cargo"
+		# Build the tool from source code
+		build_from_source "$version" "$install_path"
 
 		# Verify the installation was successful
-		local tool_cmd
-		tool_cmd="$(echo "$TOOL_TEST" | cut -d' ' -f1)"
-		test -x "$install_path/bin/$tool_cmd" || fail "Expected $install_path/bin/$tool_cmd to be executable after installation."
+		verify_installation "$install_path"
 
 		echo "$TOOL_NAME $version installation was successful!"
 	) || (
