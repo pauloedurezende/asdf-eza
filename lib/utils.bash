@@ -8,8 +8,16 @@ TOOL_NAME="eza"
 TOOL_TEST="eza --version"
 
 fail() {
-	echo -e "asdf-$TOOL_NAME: $*"
+	echo -e "asdf-$TOOL_NAME: $*" >&2
 	exit 1
+}
+
+log_info() {
+	echo "* $*"
+}
+
+log_error() {
+	echo "ERROR: $*" >&2
 }
 
 curl_opts=(-fsSL)
@@ -49,12 +57,18 @@ download_release() {
 }
 
 check_build_dependencies() {
+	local missing_deps=()
+	
 	if ! command -v cargo >/dev/null 2>&1; then
-		fail "cargo is required to build $TOOL_NAME. Please install Rust: https://rustup.rs/"
+		missing_deps+=("cargo (Rust package manager)")
 	fi
 
 	if ! command -v rustc >/dev/null 2>&1; then
-		fail "rustc is required to build $TOOL_NAME. Please install Rust: https://rustup.rs/"
+		missing_deps+=("rustc (Rust compiler)")
+	fi
+
+	if [ ${#missing_deps[@]} -gt 0 ]; then
+		fail "Missing required Rust toolchain components: ${missing_deps[*]}. Install Rust from https://rustup.rs/ and ensure it's in your PATH."
 	fi
 }
 
@@ -64,21 +78,47 @@ build_from_source() {
 
 	echo "* Building $TOOL_NAME $version from source..."
 	
-	# Navigate to the downloaded source code and build with cargo
-	cd "$ASDF_DOWNLOAD_PATH" || fail "Could not access downloaded source code at $ASDF_DOWNLOAD_PATH"
+	# Validate source code directory exists and is accessible
+	if [ ! -d "$ASDF_DOWNLOAD_PATH" ]; then
+		fail "Source code directory not found: $ASDF_DOWNLOAD_PATH. Download may have failed."
+	fi
 	
-	# Install the binary directly to the asdf install path
-	# cargo install will create the bin/ directory automatically
-	cargo install --path . --root "$install_path" --locked || fail "Failed to build $TOOL_NAME with cargo"
+	# Navigate to the downloaded source code
+	cd "$ASDF_DOWNLOAD_PATH" || fail "Could not access source code directory: $ASDF_DOWNLOAD_PATH. Check permissions."
+	
+	# Validate this is a valid Rust project
+	if [ ! -f "Cargo.toml" ]; then
+		fail "Invalid source code: Cargo.toml not found in $ASDF_DOWNLOAD_PATH. Source extraction may have failed."
+	fi
+	
+	# Build and install the binary using cargo
+	echo "* Compiling $TOOL_NAME with cargo (this may take a few minutes)..."
+	if ! cargo install --path . --root "$install_path" --locked; then
+		fail "Cargo build failed for $TOOL_NAME $version. Check that your Rust toolchain is up to date and try again."
+	fi
 }
 
 verify_installation() {
 	local install_path="$1"
-	
-	# Verify the installation was successful
 	local tool_cmd
 	tool_cmd="$(echo "$TOOL_TEST" | cut -d' ' -f1)"
-	test -x "$install_path/bin/$tool_cmd" || fail "Expected $install_path/bin/$tool_cmd to be executable after installation."
+	local binary_path="$install_path/bin/$tool_cmd"
+	
+	# Check if the binary was created
+	if [ ! -f "$binary_path" ]; then
+		fail "Binary not found at expected location: $binary_path. Cargo installation may have failed silently."
+	fi
+	
+	# Check if the binary is executable
+	if [ ! -x "$binary_path" ]; then
+		fail "Binary exists but is not executable: $binary_path. Check file permissions."
+	fi
+	
+	# Test that the binary actually works
+	echo "* Verifying $TOOL_NAME installation..."
+	if ! "$binary_path" --version >/dev/null 2>&1; then
+		fail "Binary is present but fails to execute: $binary_path. The build may be corrupted or missing dependencies."
+	fi
 }
 
 install_version() {
