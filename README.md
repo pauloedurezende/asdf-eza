@@ -4,21 +4,22 @@
 
 [eza](https://github.com/eza-community/eza) plugin for the [asdf version manager](https://asdf-vm.com).
 
+eza is a modern, maintained replacement for `ls` with better defaults and additional features like Git integration, colors, and icons.
+
 </div>
 
 # Contents
 
 - [Dependencies](#dependencies)
 - [Install](#install)
+- [Build Information](#build-information)
 - [Contributing](#contributing)
 - [License](#license)
 
 # Dependencies
 
-**TODO: adapt this section**
-
+- **Rust** - `rustc` and `cargo` are required to build eza from source. Install from [rustup.rs](https://rustup.rs/).
 - `bash`, `curl`, `tar`, and [POSIX utilities](https://pubs.opengroup.org/onlinepubs/9699919799/idx/utilities.html).
-- `SOME_ENV_VAR`: set this environment variable in your shell config to load the correct version of tool x.
 
 # Install
 
@@ -48,6 +49,17 @@ eza --version
 
 Check [asdf](https://github.com/asdf-vm/asdf) readme for more instructions on how to
 install & manage versions.
+
+# Build Information
+
+This plugin builds eza from source code for each installation, ensuring compatibility across different platforms and architectures. 
+
+**Build process:**
+- Downloads the source code for the specified version
+- Compiles using `cargo` (Rust's package manager)
+- Installation typically takes 2-5 minutes depending on your system
+
+**Note:** Make sure you have a working Rust toolchain installed before attempting to install eza.
 
 # Contributing
 
