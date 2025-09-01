@@ -20,6 +20,12 @@ log_error() {
 	echo "ERROR: $*" >&2
 }
 
+cleanup_failed_installation() {
+	local install_path="$1"
+	log_info "Cleaning up failed installation at $install_path"
+	rm -rf "$install_path"
+}
+
 curl_opts=(-fsSL)
 
 # NOTE: You might want to remove this if eza is not hosted on GitHub releases.
@@ -52,13 +58,13 @@ download_release() {
 	# TODO: Adapt the release URL convention for eza
 	url="$GH_REPO/archive/v${version}.tar.gz"
 
-	echo "* Downloading $TOOL_NAME release $version..."
+	log_info "Downloading $TOOL_NAME release $version..."
 	curl "${curl_opts[@]}" -o "$filename" -C - "$url" || fail "Could not download $url"
 }
 
 check_build_dependencies() {
 	local missing_deps=()
-	
+
 	if ! command -v cargo >/dev/null 2>&1; then
 		missing_deps+=("cargo (Rust package manager)")
 	fi
@@ -76,23 +82,23 @@ build_from_source() {
 	local version="$1"
 	local install_path="$2"
 
-	echo "* Building $TOOL_NAME $version from source..."
-	
+	log_info "Building $TOOL_NAME $version from source..."
+
 	# Validate source code directory exists and is accessible
 	if [ ! -d "$ASDF_DOWNLOAD_PATH" ]; then
 		fail "Source code directory not found: $ASDF_DOWNLOAD_PATH. Download may have failed."
 	fi
-	
+
 	# Navigate to the downloaded source code
 	cd "$ASDF_DOWNLOAD_PATH" || fail "Could not access source code directory: $ASDF_DOWNLOAD_PATH. Check permissions."
-	
+
 	# Validate this is a valid Rust project
 	if [ ! -f "Cargo.toml" ]; then
 		fail "Invalid source code: Cargo.toml not found in $ASDF_DOWNLOAD_PATH. Source extraction may have failed."
 	fi
-	
+
 	# Build and install the binary using cargo
-	echo "* Compiling $TOOL_NAME with cargo (this may take a few minutes)..."
+	log_info "Compiling $TOOL_NAME with cargo (this may take a few minutes)..."
 	if ! cargo install --path . --root "$install_path" --locked; then
 		fail "Cargo build failed for $TOOL_NAME $version. Check that your Rust toolchain is up to date and try again."
 	fi
@@ -103,19 +109,19 @@ verify_installation() {
 	local tool_cmd
 	tool_cmd="$(echo "$TOOL_TEST" | cut -d' ' -f1)"
 	local binary_path="$install_path/bin/$tool_cmd"
-	
+
 	# Check if the binary was created
 	if [ ! -f "$binary_path" ]; then
 		fail "Binary not found at expected location: $binary_path. Cargo installation may have failed silently."
 	fi
-	
+
 	# Check if the binary is executable
 	if [ ! -x "$binary_path" ]; then
 		fail "Binary exists but is not executable: $binary_path. Check file permissions."
 	fi
-	
+
 	# Test that the binary actually works
-	echo "* Verifying $TOOL_NAME installation..."
+	log_info "Verifying $TOOL_NAME installation..."
 	if ! "$binary_path" --version >/dev/null 2>&1; then
 		fail "Binary is present but fails to execute: $binary_path. The build may be corrupted or missing dependencies."
 	fi
@@ -140,9 +146,9 @@ install_version() {
 		# Verify the installation was successful
 		verify_installation "$install_path"
 
-		echo "$TOOL_NAME $version installation was successful!"
+		log_info "$TOOL_NAME $version installation was successful!"
 	) || (
-		rm -rf "$install_path"
+		cleanup_failed_installation "$install_path"
 		fail "An error occurred while installing $TOOL_NAME $version."
 	)
 }
